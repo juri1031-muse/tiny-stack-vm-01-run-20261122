@@ -1,4 +1,5 @@
-// tiny-stack-vm-01 entry: stack VM matching generator/subject/vm.mjs (check order, traps, wrapping i32).
+// tiny-stack-vm-01 entry: a stack VM following kit ISA.md (vm.mjs is the rule).
+// One run answers every program in /input: /output/<id>/stdout.bin + exit.txt.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 const run = (p, q) => {
@@ -12,9 +13,11 @@ const run = (p, q) => {
     if (!(op < 8 || (op > 15 && op < 35 && op != 31) || (op > 47 && op < 53) || op == 64 || op == 65 || (op > 79 && op < 84))) return F(5);
     const im = op == 1 ? 1 : op == 2 ? 4 : op > 47 && op < 52 ? 2 : 0;
     if (pc + im >= n) return F(9);
-    const pp = op == 7 ? 3 : op == 3 || op == 4 || op == 23 || op == 27 || op == 49 || op == 50 || op == 64 || op == 80 || op == 81 || op == 83 ? 1 : op == 5 || op == 6 || op == 65 || (op > 15 && op < 35) ? 2 : 0;
+    const bin = op > 15 && op < 35 && op != 23 && op != 27 && op != 31;
+    const pp = op == 7 ? 3 : op == 5 || op == 6 || op == 65 || bin ? 2 : op == 3 || op == 4 || op == 23 || op == 27 || op == 49 || op == 50 || op == 64 || op == 80 || op == 81 || op == 83 ? 1 : 0;
+    const pu = op == 6 || op == 7 ? 3 : op == 4 || op == 5 ? 2 : op == 1 || op == 2 || op == 23 || op == 27 || op == 64 || op == 82 || bin ? 1 : 0;
     if (s < pp) return F(2);
-    if (s == 256 && (op == 1 || op == 2 || op == 4 || op == 6 || op == 82)) return F(3);
+    if (s - pp + pu > 256) return F(3);
     t++;
     pc += 1 + im;
     switch (op) {
@@ -43,7 +46,7 @@ const run = (p, q) => {
         if (op == 16) r = a + b;
         else if (op == 17) r = a - b;
         else if (op == 18) r = Math.imul(a, b);
-        else if (op < 23) { if (!b) return F(4); r = op == 19 ? (a / b) | 0 : op == 20 ? (a % b) | 0 : op == 21 ? ((a >>> 0) / (b >>> 0)) | 0 : ((a >>> 0) % (b >>> 0)) | 0; }
+        else if (op < 23) { if (!b) return F(4); r = op == 19 ? (a / b) | 0 : op == 20 ? (a % b) | 0 : op == 21 ? Math.floor((a >>> 0) / (b >>> 0)) | 0 : (a >>> 0) % (b >>> 0) | 0; }
         else if (op == 24) r = a & b;
         else if (op == 25) r = a | b;
         else if (op == 26) r = a ^ b;
@@ -59,10 +62,12 @@ const run = (p, q) => {
     }
   }
 };
-const I = process.env.MAKEFUN_INPUT_DIR ?? '/input', W = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+
+const I = process.env.MAKEFUN_INPUT_DIR ?? '/input';
+const O = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 for (const id of readdirSync(I).sort()) {
-  const r = run(new Uint8Array(readFileSync(join(I, id, 'program.bin'))), new Uint8Array(readFileSync(join(I, id, 'input.bin'))));
-  mkdirSync(join(W, id), { recursive: true });
-  writeFileSync(join(W, id, 'stdout.bin'), r.out);
-  writeFileSync(join(W, id, 'exit.txt'), r.code + '\n');
+  const r = run(readFileSync(join(I, id, 'program.bin')), readFileSync(join(I, id, 'input.bin')));
+  mkdirSync(join(O, id), { recursive: true });
+  writeFileSync(join(O, id, 'stdout.bin'), r.out);
+  writeFileSync(join(O, id, 'exit.txt'), r.code + '\n');
 }
